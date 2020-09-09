@@ -91,3 +91,20 @@ def _merge_solutions(solution_int_point, solution_simplex):
             if key == 'num_iterations' or key == 'elapsed_time':
                 solution[key]['total'] = solution[key]['interior_point'] + solution[key]['simplex']
     return solution
+
+
+def solution_to_str(solution, level=1, hide=('message', 'status', 'solution')):
+    """Useful script to have solution as a more user-friendly text"""
+    ans = ''
+    for key, value in solution.items():
+        if hide and key in hide:
+            continue
+        if key == 'header':
+            ans += f'{value}\n'
+            continue
+        ans += '\t' * level + key + ': '
+        if isinstance(value, dict):
+            ans += '\n' + solution_to_str(value, level=level + 1)
+        else:
+            ans += f'{value}\n'
+    return ans
