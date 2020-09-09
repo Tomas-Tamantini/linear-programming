@@ -5,7 +5,7 @@ def klee_minty(dimensions=2, val_b=5):
     """
     Generate klee minty restrictions of the form:
     Maximize c*x
-    Subject to A*x <= b
+    Subject to A*x <= b and x >= 0
     b[i] = val_b ^ i
     :param dimensions: Number of dimensions
     :param val_b: Constant for restrictions (5 <= val_b <= 100)

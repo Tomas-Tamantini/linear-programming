@@ -1,6 +1,6 @@
 from time import time
 from functools import wraps
-
+from murty import point_to_vertex
 from scipy.optimize import linprog
 
 
@@ -8,7 +8,8 @@ from scipy.optimize import linprog
 # https://docs.scipy.org/doc/scipy/reference/optimize.linprog-interior-point.html
 # https://docs.scipy.org/doc/scipy/reference/optimize.linprog-revised_simplex.html
 
-def timer(func):
+
+def _timer(func):
     """Decorator that times each solution"""
 
     @wraps(func)
@@ -22,11 +23,11 @@ def timer(func):
     return wrapper
 
 
-@timer
+@_timer
 def _generic_solver(method, A, b, c, x0=None, options=None):
     """
     Solve LP program of the form:
-    maximize c*x with: A*x <= b
+    maximize c*x with: A*x <= b and x >= 0
     :param method: revised simplex OR interior-point
     :return: Dictionary with solution info
     """
@@ -45,7 +46,7 @@ def _generic_solver(method, A, b, c, x0=None, options=None):
 def simplex(A, b, c, x0=None, max_iterations=100000000):
     """
     Uses revised SIMPLEX algorithm to solves LP problem of the form:
-    maximize c*x with: A*x <= b
+    maximize c*x with: A*x <= b and x >= 0
     :param x0: Initial vertex (Default is origin)
     :param max_iterations: Maximum number of iterations to be run
     :return: Dictionary with solution info
@@ -56,7 +57,7 @@ def simplex(A, b, c, x0=None, max_iterations=100000000):
 def interior_point(A, b, c, alpha0=0.99995, tolerance=1e-8, max_iterations=100000000):
     """
     Uses Mosek interior point algorithm to solves LP problem of the form:
-    maximize c*x with: A*x <= b
+    maximize c*x with: A*x <= b x >= 0
     :param alpha0: Size of step
     :param tolerance: Termination tolerance
     :param max_iterations: Maximum number of iterations to be run
@@ -64,3 +65,29 @@ def interior_point(A, b, c, alpha0=0.99995, tolerance=1e-8, max_iterations=10000
     """
     return _generic_solver('interior-point', A, b, c,
                            options={'maxiter': max_iterations, 'alpha0': alpha0, 'tol': tolerance})
+
+
+def hybrid(A, b, c, alpha0=0.99995, tolerance=1e-8, max_iterations=100000000):
+    solution_ip = interior_point(A, b, c, alpha0, tolerance, max_iterations)
+    x0_simplex = None if 'error' in solution_ip else point_to_vertex(solution_ip['solution'], A, b)
+    solution_simplex = simplex(A, b, c, x0_simplex, max_iterations)
+    return _merge_solutions(solution_ip, solution_simplex)
+
+
+def _merge_solutions(solution_int_point, solution_simplex):
+    """
+    Merges solutions into a single solution for the hybrid algorithm
+    """
+    solution = {'header': solution_int_point['header'].replace('INTERIOR POINT', 'HYBRID')}
+    for key, value in solution_int_point.items():
+        if key == 'header':
+            continue
+        solution[key] = {'interior_point': value}
+    for key, value in solution_simplex.items():
+        if key == 'header':
+            continue
+        if key in solution:
+            solution[key]['simplex'] = value
+            if key == 'num_iterations' or key == 'elapsed_time':
+                solution[key]['total'] = solution[key]['interior_point'] + solution[key]['simplex']
+    return solution
