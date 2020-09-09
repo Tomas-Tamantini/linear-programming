@@ -1,6 +1,9 @@
 from klee_minty import *
+from solver import *
 
 A, b, c = klee_minty()
-print(A)
-print(b)
-print(c)
+
+
+k = simplex(A, b, c)
+
+print(k)
